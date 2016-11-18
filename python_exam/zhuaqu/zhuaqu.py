@@ -1,20 +1,67 @@
 #!F:\Python27\python.exe
 # -*- coding: UTF-8 -*-
+print
+import urllib
+import urllib2
+import re
+import MySQLdb
+print
 
-print "Content-type:text/html"
-print                               # 空行，告诉服务器结束头部
+class News:
 
-import urllib,re,urllib2
-#获取页面
-url = "http://news.baidu.com/?qq-pf-to=pcqq.group"
+    #init
+    def __init__(self):
+        self.url = "http://news.baidu.com/"
+    #convert div to ''
+    def tranTags(self, x):
+        pattern = re.compile('<div.*?</div>')
+        res = re.sub(pattern, '', x)
+        return res
 
-content=urllib.urlopen(url).read()
-#正则匹配
-#searchObj = re.search('<div id="channel-all" class="channel-all clearfix" >.*?<ul class="clearfix">.*?<li class="icon-new-wrapper">.*?<li>.*?<a href=.*?>.*?<div id="body" alog-alias="b">', content, re.I|re.S|re.U)
+    #getPage
+    def getPage(self):
+        url = self.url
+        request = urllib2.Request(url)
+        response = urllib2.urlopen(request)
+        return response.read()
 
-searchObj = re.search('<div id=\"channel-all\" class=\"channel-all clearfix\" >.*?<div id=\"body\" alog-alias=\"b\">', content, re.I|re.S|re.U)
+    #get navCode
+    def getNavCode(self):
+        page = self.getPage()
+        pattern = re.compile('(<div id="menu".*?)<i class="slogan"></i>', re.S)
+        navCode = re.search(pattern, page)
+        return navCode.group(1)
 
-if searchObj:
-   print "searchObj.group() : ", searchObj.group()
-else:
-   print "Nothing found!!"
+    #get nav
+    def getNav(self):
+        navCode = self.getNavCode()
+        pattern = re.compile('<a href="(http://.*?/).*?>(.*?)</a>', re.S)
+        itmes = re.findall(pattern, navCode)
+        return itmes
+
+
+
+# 打开数据库连接
+db = MySQLdb.connect("localhost","root","root","sql",charset="GBK")
+# 使用cursor()方法获取操作游标
+cursor = db.cursor()
+
+news = News()
+new=news.getNav()
+
+for item in new:
+    print item[0],news.tranTags(item[1])
+    title = news.tranTags(item[1])
+    # SQL 插入语句
+    sql = "INSERT INTO news_data(nav_title,url)VALUES('"+title+"','"+item[0]+"')"
+    try:
+        # 执行sql语句
+        cursor.execute(sql)
+        # 提交到数据库执行
+        db.commit()
+    except:
+        # Rollback in case there is any error
+       db.rollback()
+
+    # 关闭数据库连接
+       db.close()
